@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoFace: Consistent Multi-View Face Generation with Geometry-Constrained Diffusion</title>
+    <meta name="description"
+        content="Project page for GeoFace: Consistent Multi-View Face Generation with Geometry-Constrained Diffusion">
+
+    <!-- Fonts and Icons -->
+    <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/wanteddev/wanted-sans@v1.0.1/packages/wanted-sans/fonts/webfonts/variable/split/WantedSansVariable.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* ─── Reset & Base ─────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --color-bg: #ffffff;
+            --color-bg-alt: #f6f6fb;
+            --color-surface: #ededf7;
+            --color-border: rgba(0,0,0,0.08);
+            --color-text-main: #1a1a2e;
+            --color-text-muted: #6b6b8a;
+            --color-accent: #6055d8;
+            --color-accent2: #2a7fd4;
+            --color-accent3: #7c6ff7;
+            --gradient: linear-gradient(135deg, #6055d8 0%, #2a7fd4 100%);
+            --font: 'Wanted Sans Variable', 'Inter', system-ui, sans-serif;
+            --radius: 12px;
+            --sidebar-w: 200px;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: var(--font);
+            background: var(--color-bg);
+            color: var(--color-text-main);
+            line-height: 1.7;
+            font-size: 16px;
+        }
+
+        /* ─── Sidebar ───────────────────────────────────────── */
+        .sidebar {
+            position: fixed;
+            left: 24px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--color-text-muted);
+            font-size: 0.78rem;
+            font-weight: 500;
+            padding: 4px 0;
+            transition: color 0.2s;
+        }
+
+        .sidebar-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--color-text-muted);
+            transition: background 0.2s, transform 0.2s;
+            flex-shrink: 0;
+        }
+
+        .sidebar-item:hover,
+        .sidebar-item.active {
+            color: var(--color-text-main);
+        }
+
+        .sidebar-item:hover .sidebar-dot,
+        .sidebar-item.active .sidebar-dot {
+            background: var(--color-accent);
+            transform: scale(1.5);
+        }
+
+        @media (max-width: 1100px) { .sidebar { display: none; } }
+
+        /* ─── Sections ──────────────────────────────────────── */
+        section { padding: 80px 0; }
+        .alt-bg { background: var(--color-bg-alt); }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .section-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 32px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--color-border);
+            letter-spacing: -0.02em;
+        }
+
+        /* ─── Hero ──────────────────────────────────────────── */
+        .hero-section {
+            padding: 100px 0 60px;
+            text-align: center;
+        }
+
+        .hero-container {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .hero-title {
+            font-size: clamp(1.7rem, 3.5vw, 2.4rem);
+            font-weight: 800;
+            line-height: 1.25;
+            letter-spacing: -0.03em;
+            margin-bottom: 16px;
+        }
+
+        .gradient-text {
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-status {
+            font-size: 0.9rem;
+            color: var(--color-text-muted);
+            margin-bottom: 28px;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .hero-authors {
+            font-size: 1rem;
+            line-height: 2;
+            margin-bottom: 10px;
+            color: var(--color-text-main);
+        }
+
+        .hero-authors a {
+            color: var(--color-accent2);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s;
+        }
+
+        .hero-authors a:hover { color: #fff; }
+        .hero-authors span { margin: 0 6px; }
+
+        .hero-affiliations {
+            font-size: 0.9rem;
+            color: var(--color-text-muted);
+            margin-bottom: 8px;
+        }
+        .hero-affiliations span { margin: 0 10px; }
+
+        .note-text {
+            font-size: 0.85rem;
+            color: var(--color-text-muted);
+            margin-bottom: 28px;
+        }
+
+        /* ─── Buttons ───────────────────────────────────────── */
+        .hero-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 22px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--gradient);
+            color: #fff;
+        }
+        .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--color-text-main);
+            border: 1px solid var(--color-border);
+        }
+        .btn-outline:hover {
+            border-color: var(--color-accent);
+            color: var(--color-accent);
+            transform: translateY(-1px);
+        }
+
+        /* ─── Teaser ────────────────────────────────────────── */
+        .teaser-container {
+            max-width: 900px;
+            margin: 48px auto 0;
+            padding: 0 24px;
+        }
+
+        .tldr-box {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-left: 3px solid var(--color-accent);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            margin-bottom: 36px;
+            text-align: left;
+        }
+
+        .tldr-label {
+            font-size: 0.7rem;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--color-accent);
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .tldr-text {
+            font-size: 1rem;
+            color: var(--color-text-main);
+            line-height: 1.7;
+        }
+
+        /* ─── Images ────────────────────────────────────────── */
+        .analysis-image-container {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .analysis-image-container-teaser {
+            border-radius: var(--radius);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .analysis-image {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .results-caption {
+            font-size: 0.92rem;
+            color: var(--color-text-muted);
+            line-height: 1.65;
+            margin-top: 12px;
+        }
+
+        .results-caption b, .results-caption strong { color: var(--color-text-main); }
+
+        /* ─── Carousel ──────────────────────────────────────── */
+        .carousel-container {
+            position: relative;
+        }
+
+        .carousel-viewport {
+            overflow: hidden;
+            border-radius: var(--radius);
+            transition: height 0.3s ease;
+        }
+
+        .carousel-track {
+            display: flex;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .carousel-slide {
+            min-width: 100%;
+        }
+
+        .results-slide-content {
+            padding: 4px 0 40px;
+        }
+
+        .results-slide-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: var(--color-text-main);
+        }
+
+        .carousel-nav-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            color: var(--color-text-main);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+            z-index: 10;
+        }
+
+        .carousel-nav-btn:hover {
+            background: var(--color-accent);
+            border-color: var(--color-accent);
+        }
+
+        .carousel-nav-btn.prev { left: -18px; }
+        .carousel-nav-btn.next { right: -18px; }
+
+        .carousel-dots {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .carousel-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--color-border);
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .carousel-dot.active {
+            background: var(--color-accent);
+            transform: scale(1.3);
+        }
+
+        .results-block { margin-bottom: 64px; }
+        .results-block:last-child { margin-bottom: 0; }
+
+        /* ─── Tables ────────────────────────────────────────── */
+        .quant-table-wrapper {
+            overflow-x: auto;
+            padding: 20px;
+        }
+
+        .quant-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .quant-table th {
+            padding: 10px 14px;
+            text-align: center;
+            font-weight: 700;
+            color: var(--color-text-muted);
+            font-size: 0.78rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .quant-table td {
+            padding: 9px 14px;
+            text-align: center;
+            color: var(--color-text-main);
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+
+        .quant-table tbody tr:hover td { background: rgba(124,111,247,0.04); }
+
+        .quant-table td:first-child { text-align: left; }
+
+        .quant-table .ours td {
+            font-weight: 700;
+            color: var(--color-accent2);
+        }
+
+        .cat-header td {
+            text-align: center;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--color-accent);
+            letter-spacing: 0.05em;
+            padding: 14px 0 6px;
+            border-bottom: none;
+        }
+
+        .quant-table .sep { border-bottom: 1px solid var(--color-border); }
+
+        /* ─── Contributions ─────────────────────────────────── */
+        .contribution-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .contribution-list li {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .contribution-num {
+            flex-shrink: 0;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: #fff;
+            margin-top: 2px;
+        }
+
+        /* ─── Citation ──────────────────────────────────────── */
+        .citation-section {
+            padding: 60px 0;
+            background: var(--color-bg-alt);
+        }
+
+        .citation-block {
+            position: relative;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .citation-copy-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            color: var(--color-text-muted);
+            font-size: 0.78rem;
+            padding: 5px 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .citation-copy-btn:hover { color: var(--color-text-main); border-color: var(--color-accent); }
+
+        .citation-code {
+            padding: 20px 24px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.82rem;
+            line-height: 1.7;
+            color: var(--color-text-muted);
+            overflow-x: auto;
+            white-space: pre;
+        }
+
+        /* ─── Footer ────────────────────────────────────────── */
+        .footer {
+            padding: 28px 0;
+            text-align: center;
+            font-size: 0.82rem;
+            color: var(--color-text-muted);
+            border-top: 1px solid var(--color-border);
+        }
+
+        /* ─── Misc ──────────────────────────────────────────── */
+        a { color: inherit; }
+
+        sup { font-size: 0.7em; }
+
+        p + p { margin-top: 14px; }
+
+        ul.method-list {
+            list-style: disc;
+            margin-left: 1.5rem;
+            margin-top: 14px;
+            color: var(--color-text-main);
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        ul.method-list li { margin-bottom: 8px; }
+        ul.method-list ul { list-style: circle; margin-left: 1.5rem; margin-top: 6px; }
+    </style>
+</head>
+
+<body>
+
+    <!-- Sidebar Navigation -->
+    <div class="sidebar">
+        <a href="#overview" class="sidebar-item">
+            <div class="sidebar-dot"></div>
+            <span class="sidebar-label">Overview</span>
+        </a>
+        <a href="#method" class="sidebar-item">
+            <div class="sidebar-dot"></div>
+            <span class="sidebar-label">Method</span>
+        </a>
+        <a href="#results" class="sidebar-item">
+            <div class="sidebar-dot"></div>
+            <span class="sidebar-label">Results</span>
+        </a>
+        <a href="#ablation" class="sidebar-item">
+            <div class="sidebar-dot"></div>
+            <span class="sidebar-label">Ablation</span>
+        </a>
+        <a href="#citation" class="sidebar-item">
+            <div class="sidebar-dot"></div>
+            <span class="sidebar-label">Citation</span>
+        </a>
+    </div>
+
+    <!-- Hero Section -->
+    <section id="overview" class="hero-section">
+        <div class="hero-container">
+            <h1 class="hero-title">
+                <span class="gradient-text">GeoFace</span>: Consistent Multi-View Face Generation
+                with Geometry-Constrained Diffusion
+            </h1>
+            <p class="hero-status">arXiv preprint</p>
+
+            <!-- Authors -->
+            <div class="hero-authors">
+                <span><a href="https://yejich.github.io" target="_blank">Yeji Choi<sup>1</sup></a></span>
+                <span>Jinhyeok Choi<sup>1</sup></span>
+                <span>Jaewon Min<sup>1</sup></span>
+                <span>Minkyung Kwon<sup>1</sup></span><br>
+                <span>Jin Hyeon Kim<sup>1</sup></span>
+                <span>Seungryong Kim<sup>1†</sup></span>
+            </div>
+
+            <div class="hero-affiliations">
+                <span><sup>1</sup>KAIST AI</span>
+            </div>
+            <p class="note-text"><sup>†</sup>Corresponding author</p>
+
+            <!-- Link Buttons -->
+            <div class="hero-buttons">
+                <a href="#" class="btn btn-primary">
+                    <i class="fa-solid fa-file-lines"></i> Paper
+                </a>
+                <a href="https://github.com/cvlab-kaist/GeoFace" class="btn btn-outline">
+                    <i class="fa-brands fa-github"></i> Code
+                </a>
+                <a href="#citation" class="btn btn-outline">
+                    <i class="fa-solid fa-quote-right"></i> BibTeX
+                </a>
+            </div>
+        </div>
+
+        <!-- Teaser -->
+        <div class="teaser-container">
+            <div class="tldr-box">
+                <span class="tldr-label">TL;DR</span>
+                <p class="tldr-text">
+                    We present <b>GeoFace</b>, a geometry-constrained multi-view diffusion framework for consistent face generation from a single input. By jointly generating multi-view RGB images and a shared canonical UV position map through a <b>dual-stream architecture</b> with geometry-guided attention alignment, GeoFace enforces coherent 3D structure across all generated views — significantly outperforming prior methods, especially under large pose variations.
+                </p>
+            </div>
+
+            <div class="analysis-image-container-teaser">
+                <img src="assets/teaser.png" class="analysis-image" alt="GeoFace Teaser">
+            </div>
+            <p class="results-caption" style="text-align: center; width: 75%; margin: 0 auto 0;">
+                <b>GeoFace</b> generates geometrically consistent multi-view face images from a single reference image (left), jointly producing a shared canonical UV position map that enforces coherent 3D structure across all viewpoints.
+            </p>
+        </div>
+    </section>
+
+    <!-- Overview / Abstract -->
+    <section class="section alt-bg">
+        <div class="container">
+            <h2 class="section-title">Overview</h2>
+            <p>
+                Generating photorealistic multi-view facial images has broad applications in 3D reconstruction, digital avatars, and immersive content creation. However, generating geometrically consistent images from a single input remains challenging: existing diffusion-based methods lack an explicit mechanism to enforce a shared 3D structure across views, often leading to inconsistent geometry under large pose variations.
+            </p>
+            <p>
+                To address this, <b>GeoFace</b> proposes a unified dual-stream framework for joint generation of multi-view RGB images and 3D face geometry, where the appearance and geometry streams interact through shared attention layers.
+            </p>
+
+            <ul class="method-list">
+                <li>
+                    The <b>geometry stream</b> jointly denoises a <b>canonical UV position map</b> — a view-invariant 3D representation in FLAME space — alongside the appearance streams, providing an explicit shared constraint across all generated views.
+                </li>
+                <li>
+                    A <b>geometry-guided attention alignment loss</b> supervises the cross-attention between appearance and geometry tokens with 3D-consistent correspondences, enabling the appearance stream to correctly reference pose-invariant geometric cues.
+                </li>
+                <li>
+                    The jointly generated geometry serves as an effective initialization prior for <b>downstream 3D Gaussian Splatting</b> reconstruction.
+                </li>
+            </ul>
+
+            <br>
+            <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 16px; color: var(--color-text-main);">Contributions</h3>
+            <ul class="contribution-list">
+                <li>
+                    <span class="contribution-num">1</span>
+                    <span>A unified dual-stream diffusion framework where appearance and geometry streams interact through shared attention layers, enforcing cross-view geometric consistency as an intrinsic property of the generative process.</span>
+                </li>
+                <li>
+                    <span class="contribution-num">2</span>
+                    <span>A geometry-guided attention alignment loss that supervises cross-attention between geometry and appearance streams with 3D-consistent correspondences, encouraging the two streams to mutually constrain each other.</span>
+                </li>
+                <li>
+                    <span class="contribution-num">3</span>
+                    <span>A canonical UV position map in FLAME space as a view-invariant geometry representation that is naturally compatible with 2D diffusion architectures without modification.</span>
+                </li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Method Section -->
+    <section id="method" class="section">
+        <div class="container">
+            <h2 class="section-title">Method</h2>
+
+            <div class="analysis-image-container">
+                <img src="assets/overview.png" alt="GeoFace Framework Overview" class="analysis-image">
+            </div>
+            <div class="results-caption" style="text-align: left;">
+                <p>
+                    <b>Overall architecture of GeoFace.</b> Given a reference image and target camera poses, GeoFace extends a multi-view diffusion backbone with a <b>dual-stream architecture</b>. The <em>appearance stream</em> denoises target view latents conditioned on Plücker ray embeddings, while the <em>geometry stream</em> jointly denoises a geometry latent representing the canonical UV position map. Both streams interact through shared 3D attention layers, enabling geometry to act as an explicit cross-view consistency constraint.
+                </p>
+            </div>
+
+            <br><br>
+
+            <!-- Geometry Analysis -->
+            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 20px;">Geometry Stream Motivation</h3>
+            <div class="analysis-image-container">
+                <img src="assets/analysis.png" alt="Geometry Analysis" class="analysis-image">
+            </div>
+            <div class="results-caption" style="text-align: left;">
+                <p>
+                    Cross-view feature consistency analysis using MEt3R reveals that appearance-only models (w/o geometry stream) show significantly higher dissimilarity, particularly at facial boundary regions under large pose variations. Our dedicated geometry stream provides explicit structural tokens that anchor the appearance generation to a consistent 3D surface.
+                </p>
+            </div>
+
+            <br><br>
+
+            <!-- Attention Alignment -->
+            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 20px;">Geometry-Guided Attention Alignment</h3>
+            <div class="analysis-image-container">
+                <img src="assets/attention_ablation.png" alt="Attention Alignment Visualization" class="analysis-image">
+            </div>
+            <div class="results-caption" style="text-align: left;">
+                <p>
+                    Without alignment supervision, cross-attention maps on the UV position map are diffuse and poorly localized. Our geometry-guided attention alignment loss produces sharper attention that correctly concentrates on the corresponding facial region across all viewpoints, enforcing 3D-consistent geometry-appearance correspondence.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Results Section -->
+    <section id="results" class="section alt-bg">
+        <div class="container">
+
+            <!-- Quantitative -->
+            <div class="results-block">
+                <h2 class="section-title">Quantitative Results</h2>
+                <div id="carousel-quan" class="carousel-container"></div>
+            </div>
+
+            <!-- Qualitative -->
+            <div class="results-block">
+                <h2 class="section-title">Qualitative Results</h2>
+                <div id="carousel-qual" class="carousel-container"></div>
+            </div>
+
+            <!-- 3DGS -->
+            <div class="results-block">
+                <h2 class="section-title">Downstream 3D Reconstruction</h2>
+                <div class="analysis-image-container">
+                    <img src="assets/gs_recon.png" alt="3DGS Reconstruction" class="analysis-image">
+                </div>
+                <div class="results-caption" style="text-align: left;">
+                    <p>
+                        We evaluate the jointly generated geometry as an initialization prior for 3D Gaussian Splatting from 24 generated views. Our mesh-based initialization provides dense and uniform Gaussian point placement over the entire face, producing sharper reconstructions during early optimization and consistently lower LPIPS compared to random and COLMAP-based initialization.
+                    </p>
+                </div>
+            </div>
+
+            <!-- In-the-wild -->
+            <div class="results-block">
+                <h2 class="section-title">In-the-Wild Results</h2>
+                <div class="analysis-image-container">
+                    <img src="assets/qual_wild.png" alt="In-the-wild Results" class="analysis-image">
+                </div>
+                <div class="results-caption" style="text-align: left;">
+                    <p>
+                        GeoFace generalizes robustly beyond controlled capture settings. Across diverse input types — including portraits under challenging lighting, heavily made-up faces, 3D-rendered characters, and stylized illustrations — GeoFace consistently produces geometrically coherent novel views while preserving the distinctive appearance of each input.
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Ablation -->
+    <section id="ablation" class="section">
+        <div class="container">
+            <h2 class="section-title">Ablation Study</h2>
+
+            <div id="carousel-ablation" class="carousel-container"></div>
+        </div>
+    </section>
+
+    <!-- Citation -->
+    <section id="citation" class="citation-section">
+        <div class="container">
+            <h2 class="section-title" style="font-size: 1.5rem; border: none; margin-bottom: 1rem;">Citation</h2>
+            <div class="citation-block">
+                <button onclick="copyBibtex()" class="citation-copy-btn">
+                    <i class="fa-regular fa-copy"></i> Copy
+                </button>
+                <pre class="citation-code"><code id="bibtex-text">@article{choi2026geoface,
+  title={GeoFace: Consistent Multi-View Face Generation with Geometry-Constrained Diffusion},
+  author={Choi, Yeji and Choi, Jinhyeok and Min, Jaewon and Kwon, Minkyung and Kim, Jin Hyeon and Kim, Seungryong},
+  journal={arXiv preprint},
+  year={2026}
+}</code></pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>GeoFace: Consistent Multi-View Face Generation with Geometry-Constrained Diffusion · KAIST AI</p>
+        </div>
+    </footer>
+
+    <script>
+        class Carousel {
+            constructor(containerId, data, renderItem) {
+                this.container = document.getElementById(containerId);
+                if (!this.container) return;
+                this.data = data;
+                this.renderItem = renderItem;
+                this.currentIndex = 0;
+                this.totalSlides = data.length;
+                this.init();
+                window.addEventListener('resize', () => this.updateHeight());
+                this.container.addEventListener('load', () => this.updateHeight(), true);
+            }
+
+            init() {
+                this.container.innerHTML = `
+                    <div class="carousel-viewport">
+                        <div class="carousel-track">
+                            ${this.data.map(item => `<div class="carousel-slide">${this.renderItem(item)}</div>`).join('')}
+                        </div>
+                    </div>
+                    ${this.totalSlides > 1 ? `
+                    <button class="carousel-nav-btn prev"><i class="fa-solid fa-chevron-left"></i></button>
+                    <button class="carousel-nav-btn next"><i class="fa-solid fa-chevron-right"></i></button>
+                    <div class="carousel-dots">
+                        ${this.data.map((_, i) => `<button class="carousel-dot ${i === 0 ? 'active' : ''}" data-index="${i}"></button>`).join('')}
+                    </div>` : ''}
+                `;
+                this.track = this.container.querySelector('.carousel-track');
+                this.dots = this.container.querySelectorAll('.carousel-dot');
+                const prev = this.container.querySelector('.carousel-nav-btn.prev');
+                const next = this.container.querySelector('.carousel-nav-btn.next');
+                if (prev) prev.onclick = () => this.move(-1);
+                if (next) next.onclick = () => this.move(1);
+                this.dots.forEach((dot, i) => dot.onclick = () => this.goTo(i));
+                this.update();
+            }
+
+            move(dir) {
+                this.currentIndex = (this.currentIndex + dir + this.totalSlides) % this.totalSlides;
+                this.update();
+            }
+
+            goTo(index) {
+                this.currentIndex = index;
+                this.update();
+            }
+
+            update() {
+                this.track.style.transform = `translateX(-${this.currentIndex * 100}%)`;
+                this.dots.forEach((dot, i) => {
+                    dot.className = `carousel-dot ${i === this.currentIndex ? 'active' : ''}`;
+                });
+                setTimeout(() => this.updateHeight(), 50);
+            }
+
+            updateHeight() {
+                const slides = this.container.querySelectorAll('.carousel-slide');
+                if (slides[this.currentIndex]) {
+                    const height = slides[this.currentIndex].offsetHeight;
+                    const vp = this.container.querySelector('.carousel-viewport');
+                    if (vp) vp.style.height = `${height}px`;
+                }
+            }
+        }
+
+        /* ── Quantitative Data ── */
+        const quantData = [
+            {
+                title: "Quantitative Comparison on RenderMe-360",
+                desc: "<b>GeoFace</b> consistently outperforms all baselines across both viewpoint ranges (frontal-to-mid and profile views). Gains are more pronounced under large pose variations, demonstrating that explicit geometry supervision is especially beneficial when appearance-only methods degrade.",
+                table: `
+                    <table class="quant-table">
+                        <thead>
+                            <tr>
+                                <th>Category</th><th>Method</th>
+                                <th colspan="4">Frontal-to-mid views</th>
+                                <th colspan="4">Profile views</th>
+                            </tr>
+                            <tr>
+                                <th></th><th></th>
+                                <th>PSNR↑</th><th>SSIM↑</th><th>LPIPS↓</th><th>CSIM↑</th>
+                                <th>PSNR↑</th><th>SSIM↑</th><th>LPIPS↓</th><th>CSIM↑</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td rowspan="2" style="font-size:0.78rem;color:var(--color-text-muted);font-weight:700;">NeRF<br>-based</td>
+                                <td>PanoHead</td><td>11.78</td><td>0.6404</td><td>0.3957</td><td>0.5330</td><td>10.71</td><td>0.5985</td><td>0.4622</td><td>0.3754</td></tr>
+                            <tr><td>SphereHead</td><td>12.24</td><td>0.6528</td><td>0.3883</td><td>0.5219</td><td>11.29</td><td>0.6252</td><td>0.4471</td><td>0.3601</td></tr>
+                            <tr class="sep"><td colspan="10"></td></tr>
+                            <tr><td rowspan="4" style="font-size:0.78rem;color:var(--color-text-muted);font-weight:700;">Diffusion<br>-based</td>
+                                <td>SEVA</td><td>12.39</td><td>0.6706</td><td>0.3568</td><td>0.5895</td><td>10.26</td><td>0.6228</td><td>0.4650</td><td>0.4848</td></tr>
+                            <tr><td>DiffPortrait360</td><td>10.59</td><td>0.5915</td><td>0.4534</td><td>0.4697</td><td>8.11</td><td>0.4804</td><td>0.6005</td><td>0.2513</td></tr>
+                            <tr><td>CAP4D</td><td>12.82</td><td>0.6782</td><td>0.3235</td><td>0.6526</td><td>12.10</td><td>0.6676</td><td>0.3738</td><td>0.5388</td></tr>
+                            <tr class="ours"><td><b>GeoFace (Ours)</b></td><td><b>17.34</b></td><td><b>0.7780</b></td><td><b>0.1795</b></td><td><b>0.8084</b></td><td><b>15.30</b></td><td><b>0.7562</b></td><td><b>0.2440</b></td><td><b>0.7001</b></td></tr>
+                        </tbody>
+                    </table>
+                `
+            },
+            {
+                title: "Quantitative Comparison on Nersemble v2",
+                desc: "<b>GeoFace</b> achieves state-of-the-art performance on Nersemble v2 across all metrics. The improvement in CSIM confirms that jointly modeling geometry and appearance leads to better identity preservation across viewpoints.",
+                table: `
+                    <table class="quant-table">
+                        <thead>
+                            <tr>
+                                <th>Category</th><th>Method</th>
+                                <th colspan="4">Frontal-to-mid views</th>
+                                <th colspan="4">Profile views</th>
+                            </tr>
+                            <tr>
+                                <th></th><th></th>
+                                <th>PSNR↑</th><th>SSIM↑</th><th>LPIPS↓</th><th>CSIM↑</th>
+                                <th>PSNR↑</th><th>SSIM↑</th><th>LPIPS↓</th><th>CSIM↑</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td rowspan="2" style="font-size:0.78rem;color:var(--color-text-muted);font-weight:700;">NeRF<br>-based</td>
+                                <td>PanoHead</td><td>13.54</td><td>0.6613</td><td>0.3528</td><td>0.5983</td><td>11.80</td><td>0.6310</td><td>0.4358</td><td>0.5088</td></tr>
+                            <tr><td>SphereHead</td><td>13.44</td><td>0.6650</td><td>0.3556</td><td>0.6157</td><td>11.35</td><td>0.6263</td><td>0.4433</td><td>0.5206</td></tr>
+                            <tr class="sep"><td colspan="10"></td></tr>
+                            <tr><td rowspan="4" style="font-size:0.78rem;color:var(--color-text-muted);font-weight:700;">Diffusion<br>-based</td>
+                                <td>SEVA</td><td>12.73</td><td>0.2169</td><td>0.4692</td><td>0.5436</td><td>11.18</td><td>0.2073</td><td>0.4849</td><td>0.4839</td></tr>
+                            <tr><td>DiffPortrait360</td><td>12.31</td><td>0.6250</td><td>0.4064</td><td>0.5823</td><td>10.67</td><td>0.5803</td><td>0.4927</td><td>0.4795</td></tr>
+                            <tr><td>CAP4D</td><td>12.41</td><td>0.6428</td><td>0.4059</td><td>0.6090</td><td>10.68</td><td>0.6006</td><td>0.5099</td><td>0.4606</td></tr>
+                            <tr class="ours"><td><b>GeoFace (Ours)</b></td><td><b>21.33</b></td><td><b>0.7858</b></td><td><b>0.1460</b></td><td><b>0.8365</b></td><td><b>18.16</b></td><td><b>0.7384</b></td><td><b>0.2055</b></td><td><b>0.7782</b></td></tr>
+                        </tbody>
+                    </table>
+                `
+            }
+        ];
+
+        /* ── Qualitative Data ── */
+        const qualData = [
+            {
+                title: "Qualitative Comparison on RenderMe-360",
+                desc: "GeoFace produces geometrically consistent and identity-preserving results even under large pose variations. The improvement is particularly pronounced at self-occluded regions such as the jaw and nasal bridge, where appearance-only models lack sufficient constraints to resolve depth ambiguity.",
+                image: "assets/main_qual.png"
+            },
+            {
+                title: "Qualitative Comparison on Nersemble v2",
+                desc: "Additional qualitative comparisons on Nersemble v2. GeoFace consistently outperforms prior methods in both visual quality and cross-view geometric consistency across diverse identities.",
+                image: "assets/main_qual_2.png"
+            }
+        ];
+
+        /* ── Ablation Data ── */
+        const ablationData = [
+            {
+                title: "Ablation Study: Component Analysis",
+                desc: "Each component contributes progressively to performance. The geometry stream improves geometric consistency (V2V error), the learnable camera token avoids spurious viewpoint assumptions, and the alignment loss sharpens cross-modal attention for better correspondence.",
+                table: `
+                    <table class="quant-table">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th>Geo. stream</th><th>Learnable token</th><th>Align. loss</th>
+                                <th>PSNR↑</th><th>SSIM↑</th><th>LPIPS↓</th><th>CSIM↑</th><th>V2V↓</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>(a) CAT3D</td><td>✗</td><td>✗</td><td>✗</td><td>15.12</td><td>0.7499</td><td>0.2495</td><td>0.7020</td><td>—</td></tr>
+                            <tr><td>(b)</td><td>✓</td><td>✗</td><td>✗</td><td>15.33</td><td>0.7507</td><td>0.2474</td><td>0.7069</td><td>15.26</td></tr>
+                            <tr><td>(c)</td><td>✓</td><td>✓</td><td>✗</td><td>15.61</td><td><b>0.7597</b></td><td>0.2359</td><td>0.7161</td><td>13.12</td></tr>
+                            <tr><td>(d)</td><td>✓</td><td>✗</td><td>✓</td><td>15.50</td><td>0.7520</td><td>0.2424</td><td>0.7137</td><td>15.00</td></tr>
+                            <tr class="ours"><td><b>(e) GeoFace (Ours)</b></td><td>✓</td><td>✓</td><td>✓</td><td><b>15.71</b></td><td>0.7595</td><td><b>0.2300</b></td><td><b>0.7226</b></td><td><b>12.65</b></td></tr>
+                        </tbody>
+                    </table>
+                `
+            },
+            {
+                title: "Ablation Study: Qualitative Comparison",
+                desc: "Qualitative ablation results. The geometry stream yields tighter FLAME mesh alignment across all viewpoints, with particularly improved consistency at self-occluded regions such as the nose, forehead, and jawline under large pose variations.",
+                image: "assets/ablation.png"
+            }
+        ];
+
+        /* ── Render Functions ── */
+        function renderTable(item) {
+            return `<div class="results-slide-content">
+                <h3 class="results-slide-title">${item.title}</h3>
+                <div class="analysis-image-container" style="background:transparent;border:none;">
+                    <div class="quant-table-wrapper">${item.table}</div>
+                </div>
+                <div class="results-caption"><p>${item.desc}</p></div>
+            </div>`;
+        }
+
+        function renderImage(item) {
+            return `<div class="results-slide-content">
+                <h3 class="results-slide-title">${item.title}</h3>
+                <div class="analysis-image-container">
+                    <img src="${item.image}" class="analysis-image" alt="${item.title}">
+                </div>
+                <div class="results-caption" style="text-align:left;"><p>${item.desc}</p></div>
+            </div>`;
+        }
+
+        function renderMixed(item) {
+            return item.table ? renderTable(item) : renderImage(item);
+        }
+
+        /* ── Copy BibTeX ── */
+        function copyBibtex() {
+            const text = document.getElementById('bibtex-text').innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.querySelector('.citation-copy-btn');
+                const original = btn.innerHTML;
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+                setTimeout(() => { btn.innerHTML = original; }, 2000);
+            });
+        }
+
+        /* ── Scroll Spy ── */
+        function initScrollSpy() {
+            const sections = document.querySelectorAll('section[id]');
+            const links = document.querySelectorAll('.sidebar-item');
+            const observer = new IntersectionObserver(entries => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const id = entry.target.getAttribute('id');
+                        links.forEach(l => l.classList.remove('active'));
+                        const active = document.querySelector(`.sidebar-item[href="#${id}"]`);
+                        if (active) active.classList.add('active');
+                    }
+                });
+            }, { rootMargin: '-50% 0px -50% 0px' });
+            sections.forEach(s => observer.observe(s));
+        }
+
+        /* ── Init ── */
+        document.addEventListener('DOMContentLoaded', () => {
+            new Carousel('carousel-quan', quantData, renderTable);
+            new Carousel('carousel-qual', qualData, renderImage);
+            new Carousel('carousel-ablation', ablationData, renderMixed);
+            initScrollSpy();
+        });
+    </script>
+</body>
+</html>
